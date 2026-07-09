@@ -1,0 +1,282 @@
+/* =====================================================
+   Sahyog Society — Design System
+   Visual identity: a physical ledger / passbook book.
+   Signature element: the circular "passbook stamp" used
+   on paid entries & receipts; ruled "page" cards; tabular
+   mono figures for every rupee amount, aligned like a
+   real khata column.
+   ===================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
+
+:root{
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  --radius-card: 14px;
+  --radius-pill: 999px;
+  --shadow-card: 0 2px 10px rgba(20,20,20,0.08);
+  --shadow-raised: 0 6px 20px rgba(20,20,20,0.14);
+}
+
+/* ---------- Theme: Bahi Khata (default) ---------- */
+[data-theme="bahi"]{
+  --bg: #F3EEE0;
+  --paper: #FBF8EF;
+  --ink: #24304A;
+  --ink-soft: #5B6478;
+  --rule: #C9BFA0;
+  --primary: #24304A;
+  --primary-contrast: #FBF8EF;
+  --accent: #C99A2E;
+  --credit: #3E7A4F;
+  --debit: #8C2F39;
+  --card-alt: #EFE7D0;
+}
+
+/* ---------- Theme: Harvest Gold ---------- */
+[data-theme="harvest"]{
+  --bg: #FBF3DD;
+  --paper: #FFFDF6;
+  --ink: #4A3423;
+  --ink-soft: #8A6F55;
+  --rule: #E3CE9C;
+  --primary: #A9711E;
+  --primary-contrast: #FFFDF6;
+  --accent: #C0392B;
+  --credit: #4A7C59;
+  --debit: #B03A2E;
+  --card-alt: #F3E4BC;
+}
+
+/* ---------- Theme: Peepal Green ---------- */
+[data-theme="peepal"]{
+  --bg: #EDF3E7;
+  --paper: #F8FBF5;
+  --ink: #23361F;
+  --ink-soft: #5C7455;
+  --rule: #BFD4B4;
+  --primary: #2D5F3E;
+  --primary-contrast: #F8FBF5;
+  --accent: #C9A227;
+  --credit: #2D6A4F;
+  --debit: #9C3B3B;
+  --card-alt: #E1EBD8;
+}
+
+/* ---------- Theme: Diya Saffron ---------- */
+[data-theme="diya"]{
+  --bg: #FDF1E2;
+  --paper: #FFFAF1;
+  --ink: #4A2A1D;
+  --ink-soft: #8C6650;
+  --rule: #EBC79A;
+  --primary: #D2601A;
+  --primary-contrast: #FFFAF1;
+  --accent: #A62639;
+  --credit: #3E7A4F;
+  --debit: #A62639;
+  --card-alt: #F7E1C2;
+}
+
+/* ---------- Theme: Night Ledger (dark) ---------- */
+[data-theme="night"]{
+  --bg: #12141C;
+  --paper: #1B1F2B;
+  --ink: #EDE7D6;
+  --ink-soft: #9BA0B4;
+  --rule: #333952;
+  --primary: #E8C468;
+  --primary-contrast: #12141C;
+  --accent: #E8C468;
+  --credit: #6FBF8B;
+  --debit: #E37B7B;
+  --card-alt: #232839;
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:76px; /* space for bottom nav */
+}
+
+h1,h2,h3,.display{
+  font-family:var(--font-display);
+  font-weight:600;
+  letter-spacing:-0.01em;
+  margin:0;
+}
+
+.mono, .amount{
+  font-family:var(--font-mono);
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- Top bar ---------- */
+.topbar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:16px 18px 14px;
+  background:var(--primary);
+  color:var(--primary-contrast);
+  position:sticky; top:0; z-index:20;
+}
+.stamp{
+  width:38px; height:38px;
+  border-radius:50%;
+  border:2px solid var(--primary-contrast);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display);
+  font-weight:700;
+  font-size:16px;
+  flex-shrink:0;
+}
+.topbar .titles{ line-height:1.15; }
+.topbar .titles small{ opacity:0.75; font-size:11.5px; display:block; }
+
+/* ---------- Page / cards ---------- */
+.page{ padding:16px; max-width:640px; margin:0 auto; }
+.card{
+  background:var(--paper);
+  border:1px solid var(--rule);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-card);
+  padding:16px;
+  margin-bottom:14px;
+  position:relative;
+}
+.card.ledger::before{
+  /* faint ruled lines like a khata page */
+  content:"";
+  position:absolute; inset:44px 0 12px 0;
+  background-image:repeating-linear-gradient(
+    to bottom, transparent, transparent 27px, var(--rule) 28px);
+  opacity:0.35; pointer-events:none;
+}
+.card h3{ font-size:16px; margin-bottom:8px; }
+.card-alt{ background:var(--card-alt); }
+
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+
+.stat{
+  background:var(--paper);
+  border:1px solid var(--rule);
+  border-radius:var(--radius-card);
+  padding:12px 14px;
+}
+.stat .label{ font-size:11.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; }
+.stat .value{ font-family:var(--font-mono); font-size:20px; font-weight:700; margin-top:4px; }
+.stat .value.credit{ color:var(--credit); }
+.stat .value.debit{ color:var(--debit); }
+
+/* ---------- Buttons / inputs ---------- */
+button{ font-family:var(--font-body); cursor:pointer; }
+.btn{
+  background:var(--primary); color:var(--primary-contrast);
+  border:none; border-radius:10px; padding:11px 16px;
+  font-size:14.5px; font-weight:600;
+}
+.btn.secondary{ background:transparent; color:var(--primary); border:1.5px solid var(--primary); }
+.btn.danger{ background:var(--debit); color:#fff; }
+.btn.block{ width:100%; }
+.btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+input, select, textarea{
+  width:100%;
+  border:1.5px solid var(--rule);
+  background:var(--paper);
+  color:var(--ink);
+  border-radius:9px;
+  padding:10px 12px;
+  font-size:14.5px;
+  font-family:var(--font-body);
+}
+label{ font-size:12.5px; color:var(--ink-soft); display:block; margin:10px 0 4px; }
+
+/* ---------- Status pill / stamp badge ---------- */
+.pill{
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 10px; border-radius:var(--radius-pill);
+  font-size:11.5px; font-weight:600; letter-spacing:.02em;
+}
+.pill.paid{ background:color-mix(in srgb, var(--credit) 18%, transparent); color:var(--credit); }
+.pill.due{ background:color-mix(in srgb, var(--debit) 18%, transparent); color:var(--debit); }
+.pill.pending{ background:color-mix(in srgb, var(--accent) 22%, transparent); color:var(--accent); }
+
+.stamp-badge{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:46px; height:46px; border-radius:50%;
+  border:2px dashed var(--credit); color:var(--credit);
+  transform:rotate(-8deg);
+  font-family:var(--font-display); font-weight:700; font-size:10px;
+  text-align:center; line-height:1.1;
+}
+
+/* ---------- Bottom nav ---------- */
+.bottomnav{
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--paper);
+  border-top:1px solid var(--rule);
+  display:flex; justify-content:space-around;
+  padding:6px 2px calc(6px + env(safe-area-inset-bottom));
+  z-index:30;
+}
+.navbtn{
+  background:none; border:none; color:var(--ink-soft);
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  font-size:10.5px; padding:6px 4px; border-radius:10px; flex:1;
+}
+.navbtn.active{ color:var(--primary); font-weight:700; }
+.navbtn svg{ width:20px; height:20px; }
+
+/* ---------- Lists / rows ---------- */
+.row{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:11px 0; border-bottom:1px solid var(--rule);
+}
+.row:last-child{ border-bottom:none; }
+.row .who{ font-weight:600; font-size:14.5px; }
+.row .meta{ font-size:12px; color:var(--ink-soft); }
+
+/* ---------- Theme swatches (settings) ---------- */
+.swatch-row{ display:flex; gap:10px; flex-wrap:wrap; }
+.swatch{
+  width:52px; height:52px; border-radius:12px; border:2px solid transparent;
+  cursor:pointer; position:relative;
+}
+.swatch.active{ border-color:var(--ink); }
+
+/* ---------- Toast ---------- */
+#toast{
+  position:fixed; left:50%; bottom:90px; transform:translateX(-50%);
+  background:var(--ink); color:var(--paper);
+  padding:10px 18px; border-radius:var(--radius-pill);
+  font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .25s;
+  z-index:50; max-width:88%; text-align:center;
+}
+#toast.show{ opacity:1; }
+
+/* ---------- Modal ---------- */
+.modal-backdrop{
+  position:fixed; inset:0; background:rgba(0,0,0,0.45);
+  display:none; align-items:flex-end; justify-content:center; z-index:40;
+}
+.modal-backdrop.show{ display:flex; }
+.modal{
+  background:var(--paper); width:100%; max-width:640px;
+  border-radius:18px 18px 0 0; padding:18px; max-height:88vh; overflow-y:auto;
+}
+.modal .modal-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.modal .close{ background:none; border:none; font-size:20px; color:var(--ink-soft); }
+
+.hidden{ display:none !important; }
+.section-title{ font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin:18px 0 8px; }
+.divider{ height:1px; background:var(--rule); margin:14px 0; }
