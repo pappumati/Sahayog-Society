@@ -5,12 +5,12 @@
 // → Your apps → SDK setup and configuration).
 // =====================================================
 const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_PROJECT.firebaseapp.com",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_PROJECT.appspot.com",
-  messagingSenderId: "REPLACE_WITH_SENDER_ID",
-  appId: "REPLACE_WITH_APP_ID"
+  apiKey: "AIzaSyB3s83Xo-SnX_HtotRU-IbIW2-CsbryZUc",
+  authDomain: "sahyog-society.firebaseapp.com",
+  projectId: "sahyog-society",
+  storageBucket: "sahyog-society.firebasestorage.app",
+  messagingSenderId: "391358475136",
+  appId: "1:391358475136:web:4603fb22289bd24b672f65"
 };
 
 firebase.initializeApp(firebaseConfig);
