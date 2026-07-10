@@ -79,6 +79,38 @@ async function recordLoanPayment(ledgerId, paymentAmount){
   }
 }
 
+async function deleteLoan(loanId){
+  const ledger = await getLoanLedger(loanId);
+  const batch = db.batch();
+  ledger.forEach(e => batch.delete(db.collection('loanLedger').doc(e.id)));
+  batch.delete(db.collection('loans').doc(loanId));
+  await batch.commit();
+}
+
+async function updateLoanDetails(loanId, principal, dateIssued){
+  const loanRef = db.collection('loans').doc(loanId);
+  const loan = (await loanRef.get()).data();
+  const yearId = societyYearOf(dateIssued);
+  const ledger = await getLoanLedger(loanId);
+  const update = {principal, dateIssued, yearId};
+  // Only safe to also reset the outstanding balance if interest hasn't
+  // been processed yet — otherwise the ledger's own running balance
+  // (not the original principal) is what's actually owed.
+  if(ledger.length === 0){
+    update.outstandingBalance = principal;
+  }
+  await loanRef.set(update, {merge:true});
+}
+
+// Undo a recorded loan payment on one ledger entry (e.g. wrong amount
+// entered) by resetting that month's payment back to zero.
+async function undoLoanPayment(ledgerId){
+  const ref = db.collection('loanLedger').doc(ledgerId);
+  const entry = (await ref.get()).data();
+  await ref.set({paymentMade: 0, closingBalance: entry.totalDue, status:'carried'}, {merge:true});
+  await db.collection('loans').doc(entry.loanId).set({status:'active', outstandingBalance: entry.totalDue}, {merge:true});
+}
+
 async function renderLoans(){
   const active = await getActiveLoans();
   const totalOutstanding = active.reduce((s,l)=>s+(l.outstandingBalance||0),0);
@@ -157,6 +189,7 @@ async function openLoanDetail(loanId){
       <div class="stat"><div class="label">Principal</div><div class="value">${fmtMoney(loan.principal)}</div></div>
       <div class="stat"><div class="label">Outstanding</div><div class="value debit">${fmtMoney(loan.outstandingBalance)}</div></div>
     </div>
+    <div class="meta" style="margin-top:6px;">Issued ${loan.dateIssued} · Status: ${loan.status}</div>
     <div class="section-title">Monthly Ledger</div>
     ${ledger.map(e=>`
       <div class="row">
@@ -166,10 +199,58 @@ async function openLoanDetail(loanId){
         </div>
         <div style="text-align:right;">
           <div class="amount">${fmtMoney(e.closingBalance)}</div>
-          ${e.status!=='paid' ? `<button class="btn" style="padding:5px 9px;font-size:12px;margin-top:4px;" onclick="promptLoanPayment('${e.id}', ${e.totalDue - e.paymentMade})">Pay</button>` : '<span class="pill paid">closed</span>'}
+          ${e.status!=='paid'
+            ? `<button class="btn" style="padding:5px 9px;font-size:12px;margin-top:4px;" onclick="promptLoanPayment('${e.id}', ${e.totalDue - e.paymentMade})">Pay</button>`
+            : `<span class="pill paid">closed</span> <button class="btn secondary" style="padding:5px 9px;font-size:12px;margin-top:4px;" onclick="undoLoanPayment('${e.id}').then(()=>openLoanDetail('${loanId}'))">Undo</button>`}
         </div>
       </div>`).join('') || '<div class="meta">No monthly entries yet — run interest processing from the Loans tab.</div>'}
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn secondary block" onclick='openEditLoanForm(${JSON.stringify({id:loan.id, principal:loan.principal, dateIssued:loan.dateIssued, memberName:loan.memberName})}, ${ledger.length})'>Edit</button>
+      <button class="btn block" style="background:transparent; color:var(--debit); border:1.5px solid var(--debit);" onclick="openDeleteLoanConfirm('${loan.id}', '${escapeHtml(loan.memberName)}')">Delete Loan</button>
+    </div>
   `);
+}
+
+function openEditLoanForm(loan, ledgerCount){
+  openModal(`
+    <div class="modal-head"><h3>Edit Loan — ${escapeHtml(loan.memberName)}</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <label>Loan Amount (Principal)</label>
+    <input id="editLoanAmt" type="number" min="1" value="${loan.principal}">
+    <label>Date Issued</label>
+    <input id="editLoanDate" type="date" value="${loan.dateIssued}">
+    ${ledgerCount > 0 ? `<div class="meta" style="margin-top:8px;">This loan already has ${ledgerCount} month(s) of interest applied — changing the principal here won't recalculate those. If the numbers are badly wrong, it's cleaner to Delete this loan and issue it again.</div>` : ''}
+    <button class="btn block" style="margin-top:14px;" onclick="submitEditLoan('${loan.id}')">Save Changes</button>
+  `);
+}
+
+async function submitEditLoan(loanId){
+  const amt = parseFloat(document.getElementById('editLoanAmt').value || '0');
+  const date = document.getElementById('editLoanDate').value;
+  if(amt <= 0){ toast('Enter a valid amount.'); return; }
+  await updateLoanDetails(loanId, amt, date);
+  closeModal();
+  toast('Loan updated.');
+  renderLoans();
+  renderDashboard();
+}
+
+function openDeleteLoanConfirm(loanId, memberName){
+  openModal(`
+    <div class="modal-head"><h3>Delete Loan?</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="meta">This permanently removes ${memberName}'s loan and its entire monthly interest ledger. This can't be undone.</div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn secondary block" onclick="openLoanDetail('${loanId}')">Cancel</button>
+      <button class="btn danger block" onclick="confirmDeleteLoan('${loanId}')">Yes, Delete</button>
+    </div>
+  `);
+}
+
+async function confirmDeleteLoan(loanId){
+  await deleteLoan(loanId);
+  closeModal();
+  toast('Loan deleted.');
+  renderLoans();
+  renderDashboard();
 }
 
 function promptLoanPayment(ledgerId, suggested){
