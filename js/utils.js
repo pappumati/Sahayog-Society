@@ -78,6 +78,13 @@ function hindiReminderMessage(memberName, monthKeyStr){
   return `प्रिय ${memberName},\nआपको ${monthName} माह का शेयर राशि दिनांक ${SOCIETY.contributionDueDay} तारीख तक जमा करनी थी, परंतु आपने अभी तक जमा नहीं की है। कृपया ${monthName} माह के अंत तक अवश्य जमा करें, अन्यथा ₹${SOCIETY.penaltyAmount} विलंब शुल्क (पेनल्टी) लगाया जाएगा।\n— Sahyog Society`;
 }
 
+// Hindi payment-confirmation message template
+function hindiPaymentConfirmationMessage(memberName, amountPaid, sharesCount, monthKeyStr){
+  const [y,m] = monthKeyStr.split('-').map(Number);
+  const monthName = HINDI_MONTHS[m];
+  return `प्रिय ${memberName},\nआपके ${sharesCount} शेयर हेतु ${monthName} माह का ₹${amountPaid} भुगतान सफलतापूर्वक प्राप्त हो गया है। धन्यवाद।\n— Sahyog Society`;
+}
+
 // ---------- tiny UI helpers ----------
 function toast(msg, ms=2400){
   const el = document.getElementById('toast');

@@ -88,7 +88,9 @@ async function loadContributionMonth(){
           <div style="text-align:right;">
             <span class="pill ${c.status==='paid'?'paid':(c.status==='partial'?'pending':'due')}">${c.status}</span>
             <div style="margin-top:6px; display:flex; gap:6px;">
-              ${c.status!=='paid' ? `<button class="btn" style="padding:6px 10px;font-size:12.5px;" onclick="promptMarkPaid('${c.id}', ${c.amountDue + (c.penaltyAmount||0)})">Mark Paid</button>` : `<span class="stamp-badge">PAID</span>`}
+              ${c.status!=='paid'
+                ? `<button class="btn" style="padding:6px 10px;font-size:12.5px;" onclick="promptMarkPaid('${c.id}', ${c.amountDue + (c.penaltyAmount||0)})">Mark Paid</button>`
+                : `<span class="stamp-badge">PAID</span><button class="btn secondary" style="padding:6px 10px;font-size:12px;" onclick="promptMarkPaid('${c.id}', ${c.amountPaid})">Edit</button>`}
               ${(!c.penaltyApplied && c.status!=='paid') ? `<button class="btn secondary" style="padding:6px 10px;font-size:12.5px;" onclick="applyContributionPenalty('${c.id}').then(loadContributionMonth)">+Penalty</button>` : ''}
             </div>
           </div>
@@ -107,8 +109,24 @@ function promptMarkPaid(id, suggested){
 async function submitPayment(id){
   const amt = parseFloat(document.getElementById('payAmt').value || '0');
   await markContributionPaid(id, amt);
-  closeModal();
-  toast('Payment recorded.');
+  const c = (await db.collection('contributions').doc(id).get()).data();
+  const member = await getMember(c.memberId);
+  showPaymentConfirmation(member, c.month, amt, c.sharesAtTime);
   loadContributionMonth();
   renderDashboard();
+}
+
+function showPaymentConfirmation(member, mKey, amountPaid, sharesCount){
+  const msg = hindiPaymentConfirmationMessage(member?.name || '', amountPaid, sharesCount, mKey);
+  const phone = member?.phone || '';
+  const wa = phone ? `https://wa.me/91${phone.replace(/\D/g,'').slice(-10)}?text=${encodeURIComponent(msg)}` : null;
+  openModal(`
+    <div class="modal-head"><h3>Payment Recorded</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="card card-alt" style="white-space:pre-line; font-size:14px; line-height:1.6;">${escapeHtml(msg)}</div>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button class="btn secondary block" onclick="copyReminderText(this)" data-msg="${escapeHtml(msg)}">Copy Text</button>
+      ${wa ? `<a class="btn block" style="text-decoration:none; text-align:center;" href="${wa}" target="_blank">Send on WhatsApp</a>` : ''}
+    </div>
+    ${!phone ? '<div class="meta" style="margin-top:8px;">No phone number on file for this member — add one from Members to enable direct WhatsApp sending.</div>' : ''}
+  `);
 }

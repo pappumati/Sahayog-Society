@@ -106,7 +106,27 @@ async function openMemberDetail(id){
       <button class="btn secondary block" onclick='openMemberForm(${JSON.stringify(m)})'>Edit</button>
       <button class="btn ${m.active===false?'':'danger'} block" onclick="toggleMemberActive('${m.id}', ${m.active===false})">${m.active===false?'Reactivate':'Deactivate'}</button>
     </div>
+    <button class="btn danger block" style="margin-top:10px; background:transparent; color:var(--debit); border:1.5px solid var(--debit);" onclick="openDeleteMemberConfirm('${m.id}', '${escapeHtml(m.name)}')">Delete Member</button>
   `);
+}
+
+function openDeleteMemberConfirm(id, name){
+  openModal(`
+    <div class="modal-head"><h3>Delete Member?</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="meta">This permanently removes <b>${name}</b> from the members list. Any contribution or loan records already saved against them will stay in reports, but they'll no longer be billed monthly. This can't be undone.</div>
+    <div style="display:flex; gap:10px; margin-top:16px;">
+      <button class="btn secondary block" onclick="openMemberDetail('${id}')">Cancel</button>
+      <button class="btn danger block" onclick="confirmDeleteMember('${id}')">Yes, Delete</button>
+    </div>
+  `);
+}
+
+async function confirmDeleteMember(id){
+  await db.collection('members').doc(id).delete();
+  closeModal();
+  toast('Member deleted.');
+  renderMembers();
+  renderDashboard();
 }
 
 async function toggleMemberActive(id, makeActive){
