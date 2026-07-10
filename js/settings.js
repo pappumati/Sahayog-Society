@@ -50,7 +50,49 @@ async function renderSettings(){
           <div class="who">${escapeHtml(u.username)}</div>
           <span class="pill ${u.isDefaultAdmin?'paid':'pending'}">${u.isDefaultAdmin?'default admin':u.role}</span>
         </div>`).join('')}
-    </div>`;
+    </div>
+    ${currentProfile?.role === 'admin' ? `
+    <div class="card" style="border-color:var(--debit);">
+      <h3 style="color:var(--debit);">Danger Zone</h3>
+      <div class="meta">Permanently erases every member, share payment, loan, and report record — for wiping test data before going live. Staff logins and your admin login are kept.</div>
+      <button class="btn block" style="margin-top:12px; background:transparent; color:var(--debit); border:1.5px solid var(--debit);" onclick="openClearAllDataConfirm()">Clear All Society Data</button>
+    </div>` : ''}`;
+}
+
+function openClearAllDataConfirm(){
+  openModal(`
+    <div class="modal-head"><h3>Clear All Data?</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="meta">This deletes <b>every</b> member, share payment, loan, ledger entry, and year-end record — permanently, with no undo. Your login and any staff logins are kept.</div>
+    <label>Type <b>DELETE</b> to confirm</label>
+    <input id="wipeConfirmText" autocapitalize="off" placeholder="DELETE">
+    <button class="btn danger block" style="margin-top:14px;" onclick="submitClearAllData()">Erase Everything</button>
+  `);
+}
+
+async function submitClearAllData(){
+  const val = document.getElementById('wipeConfirmText').value.trim();
+  if(val !== 'DELETE'){ toast('Type DELETE exactly to confirm.'); return; }
+  await clearAllSocietyData();
+  closeModal();
+  toast('All society data cleared.');
+  renderDashboard();
+  renderSettings();
+}
+
+// Deletes every document across the society's data collections —
+// members, contributions, loans, loanLedger, years, distributions.
+// Deliberately leaves the `users` collection (logins) untouched.
+async function clearAllSocietyData(){
+  const collections = ['members','contributions','loans','loanLedger','years','distributions'];
+  for(const col of collections){
+    const snap = await db.collection(col).get();
+    const docs = snap.docs;
+    for(let i=0; i<docs.length; i+=450){
+      const batch = db.batch();
+      docs.slice(i, i+450).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
 }
 
 function openAddStaff(){
