@@ -52,6 +52,13 @@ async function applyContributionPenalty(id){
   }, {merge:true});
 }
 
+async function waiveContributionPenalty(id){
+  const ref = db.collection('contributions').doc(id);
+  await ref.set({
+    penaltyApplied: false, penaltyAmount: 0
+  }, {merge:true});
+}
+
 async function renderContributions(){
   const container = document.getElementById('viewShares');
   const now = new Date();
@@ -92,6 +99,7 @@ async function loadContributionMonth(){
                 ? `<button class="btn" style="padding:6px 10px;font-size:12.5px;" onclick="promptMarkPaid('${c.id}', ${c.amountDue + (c.penaltyAmount||0)})">Mark Paid</button>`
                 : `<span class="stamp-badge">PAID</span><button class="btn secondary" style="padding:6px 10px;font-size:12px;" onclick="promptMarkPaid('${c.id}', ${c.amountPaid})">Edit</button>`}
               ${(!c.penaltyApplied && c.status!=='paid') ? `<button class="btn secondary" style="padding:6px 10px;font-size:12.5px;" onclick="applyContributionPenalty('${c.id}').then(loadContributionMonth)">+Penalty</button>` : ''}
+              ${(c.penaltyApplied) ? `<button class="btn secondary" style="padding:6px 10px;font-size:12.5px;" onclick="waiveContributionPenalty('${c.id}').then(loadContributionMonth)">Waive Penalty</button>` : ''}
             </div>
           </div>
         </div>`).join('') || '<div class="meta">No active members.</div>'}
