@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sahyog-society-v1';
+const CACHE_NAME = 'sahyog-society-v2';
 const ASSETS = [
   './',
   './index.html',
