@@ -9,12 +9,26 @@ let currentProfile = null; // { username, role, isDefaultAdmin }
 const DEFAULT_ADMIN = { username: "admin", password: "admin123" };
 
 async function ensureDefaultAdminExists(){
-  const snap = await db.collection('users').doc('admin').get();
-  if(snap.exists) return;
-  // Seed default admin — only runs once, the very first time the
-  // app connects to a fresh Firebase project.
+  // We can't read Firestore before anyone is logged in (rules require
+  // auth), so instead of checking a document, we just try signing in
+  // as the default admin. If that succeeds, it already exists — sign
+  // back out and stop. If it fails because the account doesn't exist,
+  // create it.
   try{
-    const cred = await auth.createUserWithEmailAndPassword(
+    await auth.signInWithEmailAndPassword(
+      usernameToEmail(DEFAULT_ADMIN.username), DEFAULT_ADMIN.password);
+    await auth.signOut();
+    return;
+  }catch(e){
+    // auth/user-not-found (or invalid-credential on newer SDKs) means
+    // it genuinely doesn't exist yet — fall through and create it.
+    // Any other error (e.g. wrong-password because someone already
+    // changed it) — just stop; createUser below will harmlessly fail
+    // with email-already-in-use in that case anyway.
+  }
+
+  try{
+    await auth.createUserWithEmailAndPassword(
       usernameToEmail(DEFAULT_ADMIN.username), DEFAULT_ADMIN.password);
     await db.collection('users').doc('admin').set({
       username: DEFAULT_ADMIN.username,
@@ -24,8 +38,6 @@ async function ensureDefaultAdminExists(){
     });
     await auth.signOut();
   }catch(e){
-    // If it already exists in Auth but not Firestore, or any other
-    // race — fail quietly, login screen will surface real errors.
     console.warn("Default admin seed:", e.message);
   }
 }
