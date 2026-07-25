@@ -23,17 +23,17 @@ async function renderDashboard(){
     <div class="card">
       <h3>${monthLabel(mKey)}</h3>
       <div class="grid-2">
-        <div class="stat"><div class="label">Collected</div><div class="value credit">${fmtMoney(collected)}</div></div>
-        <div class="stat"><div class="label">Pending</div><div class="value debit">${fmtMoney(Math.max(dueTotal-collected,0))}</div></div>
+        <div class="stat" style="cursor:pointer;" onclick="switchTab('shares')"><div class="label">Collected</div><div class="value credit">${fmtMoney(collected)}</div></div>
+        <div class="stat" style="cursor:pointer;" onclick="switchTab('shares')"><div class="label">Pending</div><div class="value debit">${fmtMoney(Math.max(dueTotal-collected,0))}</div></div>
       </div>
     </div>
     <div class="grid-2">
-      <div class="stat"><div class="label">Active Members</div><div class="value">${members.length}</div></div>
-      <div class="stat"><div class="label">Total Shares</div><div class="value">${totalShares}</div></div>
+      <div class="stat" style="cursor:pointer;" onclick="switchTab('members')"><div class="label">Active Members</div><div class="value">${members.length}</div></div>
+      <div class="stat" style="cursor:pointer;" onclick="switchTab('members')"><div class="label">Total Shares</div><div class="value">${totalShares}</div></div>
     </div>
     <div class="grid-2">
-      <div class="stat"><div class="label">Loans Outstanding</div><div class="value debit">${fmtMoney(totalOutstanding)}</div></div>
-      <div class="stat"><div class="label">Unpaid This Month</div><div class="value">${unpaidCount}</div></div>
+      <div class="stat" style="cursor:pointer;" onclick="switchTab('loans')"><div class="label">Loans Outstanding</div><div class="value debit">${fmtMoney(totalOutstanding)}</div></div>
+      <div class="stat" style="cursor:pointer;" onclick="switchTab('reminders')"><div class="label">Unpaid This Month</div><div class="value">${unpaidCount}</div></div>
     </div>
     ${today >= SOCIETY.reminderDay && unpaidCount > 0 ? `
       <div class="card card-alt">
@@ -45,8 +45,8 @@ async function renderDashboard(){
           <button class="btn" onclick="switchTab('reminders')">Open</button>
         </div>
       </div>` : ''}
-    <div class="card">
+    <div class="card" style="cursor:pointer;" onclick="switchTab('yearend')">
       <div class="section-title">Society Year</div>
-      <div class="meta">Current tenure: <b>${currentYear}</b> (Oct \u2192 Sep)</div>
+      <div class="meta">Current tenure: <b>${currentYear}</b> (Oct \u2192 Sep) — tap for Year-End</div>
     </div>`;
 }
