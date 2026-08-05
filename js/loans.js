@@ -172,11 +172,59 @@ async function submitIssueLoan(){
   const amt = parseFloat(document.getElementById('loanAmt').value || '0');
   const date = document.getElementById('loanDate').value;
   if(amt <= 0){ toast('Enter a valid amount.'); return; }
+
+  const existingLoans = await getMemberLoans(memberId);
+  const activeExisting = existingLoans.find(l=>l.status==='active');
+
+  if(activeExisting){
+    openDuplicateLoanConfirm(activeExisting, memberId, memberName, amt, date);
+    return;
+  }
   await issueLoan(memberId, memberName, amt, date);
   closeModal();
   toast('Loan issued.');
   renderLoans();
   renderDashboard();
+}
+
+function openDuplicateLoanConfirm(existingLoan, memberId, memberName, newAmt, date){
+  openModal(`
+    <div class="modal-head"><h3>Already Has an Active Loan</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="meta">${escapeHtml(memberName)} already has an active loan — outstanding <b class="amount">${fmtMoney(existingLoan.outstandingBalance)}</b>.</div>
+    <div class="meta" style="margin-top:8px;">Add the new ${fmtMoney(newAmt)} to this existing loan, instead of creating a second, separate one?</div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+      <button class="btn block" onclick="submitAddToExistingLoan('${existingLoan.id}', ${newAmt})">Yes — Add to Existing Loan</button>
+      <button class="btn secondary block" onclick='confirmCreateSeparateLoan("${memberId}", ${JSON.stringify(memberName)}, ${newAmt}, "${date}")'>No — Create a Separate Loan Anyway</button>
+      <button class="btn secondary block" style="border:none;" onclick="closeModal()">Cancel</button>
+    </div>
+  `);
+}
+
+async function submitAddToExistingLoan(loanId, addAmt){
+  await addToExistingLoan(loanId, addAmt);
+  closeModal();
+  toast('Amount added to existing loan.');
+  renderLoans();
+  renderDashboard();
+}
+
+async function confirmCreateSeparateLoan(memberId, memberName, amt, date){
+  await issueLoan(memberId, memberName, amt, date);
+  closeModal();
+  toast('Separate loan issued.');
+  renderLoans();
+  renderDashboard();
+}
+
+// Tops up an existing active loan's principal + outstanding balance,
+// instead of creating a second loan record for the same member.
+async function addToExistingLoan(loanId, addAmt){
+  const loanRef = db.collection('loans').doc(loanId);
+  const loan = (await loanRef.get()).data();
+  await loanRef.set({
+    principal: (loan.principal||0) + addAmt,
+    outstandingBalance: (loan.outstandingBalance||0) + addAmt
+  }, {merge:true});
 }
 
 async function openLoanDetail(loanId){
