@@ -134,7 +134,7 @@ async function undoLoanPayment(ledgerId){
 }
 
 async function renderLoans(){
-  const active = await getActiveLoans();
+  const active = (await getActiveLoans()).sort((a,b)=> a.memberName.localeCompare(b.memberName));
   const totalOutstanding = active.reduce((s,l)=>s+(l.outstandingBalance||0),0);
   const container = document.getElementById('viewLoans');
   container.innerHTML = `
@@ -277,7 +277,7 @@ async function openLoanDetail(loanId){
           ${disbursements.length > 1 ? `<button class="btn secondary" style="padding:4px 8px;font-size:11px;" onclick="removeDisbursement('${loanId}', ${i})">Remove</button>` : ''}
         </div>
       </div>`).join('')}
-    <button class="btn secondary block" style="margin-top:8px;" onclick="openAddFundsForm('${loanId}', ${JSON.stringify(loan.memberName)})">+ Add Funds (new dated entry)</button>
+    <button class="btn secondary block" style="margin-top:8px;" onclick='openAddFundsForm("${loanId}", ${JSON.stringify(loan.memberName)})'>+ Add Funds (new dated entry)</button>
     <div class="section-title">Monthly Ledger</div>
     ${ledger.map(e=>`
       <div class="row">
