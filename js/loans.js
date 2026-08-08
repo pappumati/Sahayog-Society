@@ -93,7 +93,28 @@ async function updateLoanDetails(loanId, principal, dateIssued){
   const loan = (await loanRef.get()).data();
   const yearId = societyYearOf(dateIssued);
   const ledger = await getLoanLedger(loanId);
-  const update = {principal, dateIssued, yearId};
+  const existingDisbursements = (loan.disbursements && loan.disbursements.length)
+    ? loan.disbursements.slice()
+    : [{amount: loan.principal, date: loan.dateIssued}]; // backfill pre-feature loans
+
+  const diff = Math.round((principal - (loan.principal||0)) * 100) / 100;
+  let disbursements;
+  if(diff > 0){
+    // Amount went UP — that's new money going out, so log it as its
+    // own dated disbursement rather than silently stretching the
+    // original entry.
+    disbursements = [...existingDisbursements, {amount: diff, date: dateIssued}];
+  } else if(existingDisbursements.length === 1){
+    // Amount went down (or unchanged) and this loan has only ever had
+    // one disbursement — safe to just correct that single entry.
+    disbursements = [{amount: principal, date: dateIssued}];
+  } else {
+    // Amount went down on a loan with multiple disbursements already —
+    // ambiguous which one to shrink, so leave the history as-is.
+    disbursements = existingDisbursements;
+  }
+
+  const update = {principal, dateIssued, yearId, disbursements};
   // Only safe to also reset the outstanding balance if interest hasn't
   // been processed yet — otherwise the ledger's own running balance
   // (not the original principal) is what's actually owed.
@@ -247,14 +268,16 @@ async function openLoanDetail(loanId){
       <div class="stat"><div class="label">Outstanding</div><div class="value debit">${fmtMoney(loan.outstandingBalance)}</div></div>
     </div>
     <div class="meta" style="margin-top:6px;">Status: ${loan.status}</div>
-    ${disbursements.length > 1 ? `
-    <div class="section-title">Disbursement Dates (${disbursements.length})</div>
-    ${disbursements.map(d=>`
+    <div class="section-title">Disbursements (${disbursements.length})</div>
+    ${disbursements.map((d,i)=>`
       <div class="row">
         <div class="who">${d.date}</div>
-        <div class="amount">${fmtMoney(d.amount)}</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="amount">${fmtMoney(d.amount)}</div>
+          ${disbursements.length > 1 ? `<button class="btn secondary" style="padding:4px 8px;font-size:11px;" onclick="removeDisbursement('${loanId}', ${i})">Remove</button>` : ''}
+        </div>
       </div>`).join('')}
-    ` : `<div class="meta">Issued ${loan.dateIssued}</div>`}
+    <button class="btn secondary block" style="margin-top:8px;" onclick="openAddFundsForm('${loanId}', ${JSON.stringify(loan.memberName)})">+ Add Funds (new dated entry)</button>
     <div class="section-title">Monthly Ledger</div>
     ${ledger.map(e=>`
       <div class="row">
@@ -273,17 +296,138 @@ async function openLoanDetail(loanId){
       <button class="btn secondary block" onclick='openEditLoanForm(${JSON.stringify({id:loan.id, principal:loan.principal, dateIssued:loan.dateIssued, memberName:loan.memberName})}, ${ledger.length})'>Edit</button>
       <button class="btn block" style="background:transparent; color:var(--debit); border:1.5px solid var(--debit);" onclick="openDeleteLoanConfirm('${loan.id}', '${escapeHtml(loan.memberName)}')">Delete Loan</button>
     </div>
+    <button class="btn secondary block" style="margin-top:10px;" onclick='openManageDisbursements(${JSON.stringify({id:loan.id, memberName:loan.memberName})}, ${JSON.stringify(disbursements)})'>Manage Disbursement Dates</button>
   `);
+}
+
+// Lets the admin directly view/split/correct the dated disbursement
+// entries that make up a loan's total principal — separate from the
+// Edit button, which only changes the overall amount/date.
+function openManageDisbursements(loan, disbursements){
+  const rows = disbursements.map((d,i)=>`
+    <div class="row" style="gap:8px;">
+      <input type="date" value="${d.date}" data-idx="${i}" class="disb-date" style="flex:1;">
+      <input type="number" value="${d.amount}" data-idx="${i}" class="disb-amt" style="flex:1;">
+      <button class="btn secondary" style="padding:6px 10px;" onclick="this.closest('.row').remove()">✕</button>
+    </div>`).join('');
+  openModal(`
+    <div class="modal-head"><h3>Disbursement Dates — ${escapeHtml(loan.memberName)}</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <div class="meta">Split or correct the dated amounts that make up this loan. The total must add up to the loan's outstanding-safe principal.</div>
+    <div id="disbRows" style="margin-top:10px;">${rows}</div>
+    <button class="btn secondary block" style="margin-top:10px;" onclick="addDisbRow()">+ Add Date/Amount</button>
+    <button class="btn block" style="margin-top:14px;" onclick="submitManageDisbursements('${loan.id}')">Save</button>
+  `);
+}
+
+function addDisbRow(){
+  const container = document.getElementById('disbRows');
+  const div = document.createElement('div');
+  div.className = 'row';
+  div.style.gap = '8px';
+  div.innerHTML = `
+    <input type="date" class="disb-date" style="flex:1;" value="${new Date().toISOString().slice(0,10)}">
+    <input type="number" class="disb-amt" style="flex:1;" value="0">
+    <button class="btn secondary" style="padding:6px 10px;" onclick="this.closest('.row').remove()">✕</button>`;
+  container.appendChild(div);
+}
+
+async function submitManageDisbursements(loanId){
+  const dates = [...document.querySelectorAll('.disb-date')].map(el=>el.value);
+  const amts = [...document.querySelectorAll('.disb-amt')].map(el=>parseFloat(el.value||'0'));
+  const disbursements = dates.map((date,i)=>({date, amount: amts[i]})).filter(d=>d.amount > 0 && d.date);
+  if(disbursements.length === 0){ toast('Add at least one date and amount.'); return; }
+
+  const newPrincipal = Math.round(disbursements.reduce((s,d)=>s+d.amount,0) * 100) / 100;
+  const earliestDate = disbursements.map(d=>d.date).sort()[0];
+  const loanRef = db.collection('loans').doc(loanId);
+  const loan = (await loanRef.get()).data();
+  const ledger = await getLoanLedger(loanId);
+
+  const update = {
+    principal: newPrincipal,
+    dateIssued: earliestDate,
+    yearId: societyYearOf(earliestDate),
+    disbursements
+  };
+  if(ledger.length === 0){
+    update.outstandingBalance = newPrincipal;
+  }
+  await loanRef.set(update, {merge:true});
+  closeModal();
+  toast('Disbursement dates updated.');
+  renderLoans();
+  renderDashboard();
+}
+
+function openAddFundsForm(loanId, memberName){
+  openModal(`
+    <div class="modal-head"><h3>Add Funds — ${escapeHtml(memberName)}</h3><button class="close" onclick="closeModal()">✕</button></div>
+    <label>Additional Amount</label>
+    <input id="addFundsAmt" type="number" min="1">
+    <label>Date</label>
+    <input id="addFundsDate" type="date" value="${new Date().toISOString().slice(0,10)}">
+    <button class="btn block" style="margin-top:14px;" onclick="submitAddFunds('${loanId}')">Add to This Loan</button>
+  `);
+}
+
+async function submitAddFunds(loanId){
+  const amt = parseFloat(document.getElementById('addFundsAmt').value || '0');
+  const date = document.getElementById('addFundsDate').value;
+  if(amt <= 0){ toast('Enter a valid amount.'); return; }
+  await addToExistingLoan(loanId, amt, date);
+  toast('Funds added.');
+  openLoanDetail(loanId);
+  renderLoans();
+  renderDashboard();
+}
+
+// Removes one disbursement row (e.g. entered by mistake) and shrinks
+// principal/outstanding by that amount. Blocked once interest has
+// been processed, since the balance is no longer just the sum of
+// disbursements at that point.
+async function removeDisbursement(loanId, index){
+  const loanRef = db.collection('loans').doc(loanId);
+  const loan = (await loanRef.get()).data();
+  const ledger = await getLoanLedger(loanId);
+  if(ledger.length > 0){
+    toast("Can't remove — interest has already been processed on this loan. Use Undo on the ledger entry instead, or Delete the whole loan.");
+    return;
+  }
+  const disbursements = (loan.disbursements && loan.disbursements.length)
+    ? loan.disbursements.slice()
+    : [{amount: loan.principal, date: loan.dateIssued}];
+  const removed = disbursements.splice(index, 1)[0];
+  if(disbursements.length === 0){
+    // Removing the only disbursement — just delete the whole loan.
+    await deleteLoan(loanId);
+    closeModal();
+    toast('Loan removed.');
+    renderLoans();
+    renderDashboard();
+    return;
+  }
+  const newPrincipal = disbursements.reduce((s,d)=>s+d.amount, 0);
+  await loanRef.set({
+    principal: newPrincipal,
+    outstandingBalance: newPrincipal,
+    dateIssued: disbursements[0].date,
+    disbursements
+  }, {merge:true});
+  toast(`Removed ${fmtMoney(removed.amount)} entry.`);
+  openLoanDetail(loanId);
+  renderLoans();
+  renderDashboard();
 }
 
 function openEditLoanForm(loan, ledgerCount){
   openModal(`
     <div class="modal-head"><h3>Edit Loan — ${escapeHtml(loan.memberName)}</h3><button class="close" onclick="closeModal()">✕</button></div>
-    <label>Loan Amount (Principal)</label>
+    <label>Total Loan Amount (Principal)</label>
     <input id="editLoanAmt" type="number" min="1" value="${loan.principal}">
-    <label>Date Issued</label>
+    <div class="meta">If you increase this, the increase is logged as a new disbursement on the date below — not merged into the original date.</div>
+    <label>Date (of this change, or original issue date if unchanged)</label>
     <input id="editLoanDate" type="date" value="${loan.dateIssued}">
-    ${ledgerCount > 0 ? `<div class="meta" style="margin-top:8px;">This loan already has ${ledgerCount} month(s) of interest applied — changing the principal here won't recalculate those. If the numbers are badly wrong, it's cleaner to Delete this loan and issue it again.</div>` : ''}
+    ${ledgerCount > 0 ? `<div class="meta" style="margin-top:8px;">This loan already has ${ledgerCount} month(s) of interest applied — increasing the principal here won't retroactively recalculate those months.</div>` : ''}
     <button class="btn block" style="margin-top:14px;" onclick="submitEditLoan('${loan.id}')">Save Changes</button>
   `);
 }
