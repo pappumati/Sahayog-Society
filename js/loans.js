@@ -12,6 +12,7 @@ async function issueLoan(memberId, memberName, principal, dateIssued){
     status: 'active',
     outstandingBalance: principal,
     lastProcessedMonth: null,
+    disbursements: [{amount: principal, date: dateIssued}],
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   return ref.id;
@@ -135,7 +136,7 @@ async function renderLoans(){
         <div class="row" onclick="openLoanDetail('${l.id}')" style="cursor:pointer;">
           <div>
             <div class="who">${escapeHtml(l.memberName)}</div>
-            <div class="meta">Principal ${fmtMoney(l.principal)} · issued ${l.dateIssued}</div>
+            <div class="meta">Principal ${fmtMoney(l.principal)} · ${l.disbursements && l.disbursements.length > 1 ? `${l.disbursements.length} disbursements` : `issued ${l.dateIssued}`}</div>
           </div>
           <div class="amount debit">${fmtMoney(l.outstandingBalance)}</div>
         </div>`).join('') || '<div class="meta">No active loans.</div>'}
@@ -191,17 +192,17 @@ function openDuplicateLoanConfirm(existingLoan, memberId, memberName, newAmt, da
   openModal(`
     <div class="modal-head"><h3>Already Has an Active Loan</h3><button class="close" onclick="closeModal()">✕</button></div>
     <div class="meta">${escapeHtml(memberName)} already has an active loan — outstanding <b class="amount">${fmtMoney(existingLoan.outstandingBalance)}</b>.</div>
-    <div class="meta" style="margin-top:8px;">Add the new ${fmtMoney(newAmt)} to this existing loan, instead of creating a second, separate one?</div>
+    <div class="meta" style="margin-top:8px;">Add the new ${fmtMoney(newAmt)} (dated ${date}) to this existing loan, instead of creating a second, separate one?</div>
     <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
-      <button class="btn block" onclick="submitAddToExistingLoan('${existingLoan.id}', ${newAmt})">Yes — Add to Existing Loan</button>
+      <button class="btn block" onclick="submitAddToExistingLoan('${existingLoan.id}', ${newAmt}, '${date}')">Yes — Add to Existing Loan</button>
       <button class="btn secondary block" onclick='confirmCreateSeparateLoan("${memberId}", ${JSON.stringify(memberName)}, ${newAmt}, "${date}")'>No — Create a Separate Loan Anyway</button>
       <button class="btn secondary block" style="border:none;" onclick="closeModal()">Cancel</button>
     </div>
   `);
 }
 
-async function submitAddToExistingLoan(loanId, addAmt){
-  await addToExistingLoan(loanId, addAmt);
+async function submitAddToExistingLoan(loanId, addAmt, date){
+  await addToExistingLoan(loanId, addAmt, date);
   closeModal();
   toast('Amount added to existing loan.');
   renderLoans();
@@ -217,13 +218,18 @@ async function confirmCreateSeparateLoan(memberId, memberName, amt, date){
 }
 
 // Tops up an existing active loan's principal + outstanding balance,
-// instead of creating a second loan record for the same member.
-async function addToExistingLoan(loanId, addAmt){
+// and records this specific disbursement's own date so the ledger
+// shows every date money went out, not just the original issue date.
+async function addToExistingLoan(loanId, addAmt, date){
   const loanRef = db.collection('loans').doc(loanId);
   const loan = (await loanRef.get()).data();
+  const existingDisbursements = (loan.disbursements && loan.disbursements.length)
+    ? loan.disbursements
+    : [{amount: loan.principal, date: loan.dateIssued}]; // backfill for loans created before this feature
   await loanRef.set({
     principal: (loan.principal||0) + addAmt,
-    outstandingBalance: (loan.outstandingBalance||0) + addAmt
+    outstandingBalance: (loan.outstandingBalance||0) + addAmt,
+    disbursements: [...existingDisbursements, {amount: addAmt, date}]
   }, {merge:true});
 }
 
@@ -231,13 +237,24 @@ async function openLoanDetail(loanId){
   const loanDoc = await db.collection('loans').doc(loanId).get();
   const loan = {id:loanDoc.id, ...loanDoc.data()};
   const ledger = await getLoanLedger(loanId);
+  const disbursements = (loan.disbursements && loan.disbursements.length)
+    ? loan.disbursements.slice().sort((a,b)=> a.date.localeCompare(b.date))
+    : [{amount: loan.principal, date: loan.dateIssued}];
   openModal(`
     <div class="modal-head"><h3>${escapeHtml(loan.memberName)} — Loan</h3><button class="close" onclick="closeModal()">✕</button></div>
     <div class="grid-2">
       <div class="stat"><div class="label">Principal</div><div class="value">${fmtMoney(loan.principal)}</div></div>
       <div class="stat"><div class="label">Outstanding</div><div class="value debit">${fmtMoney(loan.outstandingBalance)}</div></div>
     </div>
-    <div class="meta" style="margin-top:6px;">Issued ${loan.dateIssued} · Status: ${loan.status}</div>
+    <div class="meta" style="margin-top:6px;">Status: ${loan.status}</div>
+    ${disbursements.length > 1 ? `
+    <div class="section-title">Disbursement Dates (${disbursements.length})</div>
+    ${disbursements.map(d=>`
+      <div class="row">
+        <div class="who">${d.date}</div>
+        <div class="amount">${fmtMoney(d.amount)}</div>
+      </div>`).join('')}
+    ` : `<div class="meta">Issued ${loan.dateIssued}</div>`}
     <div class="section-title">Monthly Ledger</div>
     ${ledger.map(e=>`
       <div class="row">
