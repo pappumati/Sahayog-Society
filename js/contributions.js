@@ -78,12 +78,16 @@ async function loadContributionMonth(){
   const mKey = document.getElementById('collectMonth').value || monthKey(new Date());
   await ensureMonthContributions(mKey);
   const list = await getContributionsForMonth(mKey);
-  const totalDue = list.reduce((s,c)=>s + c.amountDue + (c.penaltyAmount||0), 0);
   const totalPaid = list.reduce((s,c)=>s + (c.amountPaid||0), 0);
+  const totalPending = list.reduce((s,c)=>{
+    if(c.status==='paid') return s;
+    const owed = (c.amountDue||0) + (c.penaltyAmount||0) - (c.amountPaid||0);
+    return s + Math.max(owed,0);
+  },0);
   document.getElementById('contribList').innerHTML = `
     <div class="grid-2" style="margin-bottom:14px;">
       <div class="stat"><div class="label">Collected — ${monthLabel(mKey)}</div><div class="value credit">${fmtMoney(totalPaid)}</div></div>
-      <div class="stat"><div class="label">Pending</div><div class="value debit">${fmtMoney(Math.max(totalDue-totalPaid,0))}</div></div>
+      <div class="stat"><div class="label">Pending</div><div class="value debit">${fmtMoney(totalPending)}</div></div>
     </div>
     <div class="card ledger">
       ${list.map(c=>`

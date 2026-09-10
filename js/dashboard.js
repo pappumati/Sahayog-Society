@@ -10,7 +10,11 @@ async function renderDashboard(){
   await ensureMonthContributions(mKey);
   const contribs = await getContributionsForMonth(mKey);
   const collected = contribs.reduce((s,c)=>s+(c.amountPaid||0),0);
-  const dueTotal = contribs.reduce((s,c)=>s+c.amountDue+(c.penaltyAmount||0),0);
+  const pendingTotal = contribs.reduce((s,c)=>{
+    if(c.status==='paid') return s;
+    const owed = (c.amountDue||0) + (c.penaltyAmount||0) - (c.amountPaid||0);
+    return s + Math.max(owed,0);
+  },0);
   const unpaidCount = contribs.filter(c=>c.status!=='paid').length;
 
   const activeLoans = await getActiveLoans();
@@ -24,7 +28,7 @@ async function renderDashboard(){
       <h3>${monthLabel(mKey)}</h3>
       <div class="grid-2">
         <div class="stat" style="cursor:pointer;" onclick="switchTab('shares')"><div class="label">Collected</div><div class="value credit">${fmtMoney(collected)}</div></div>
-        <div class="stat" style="cursor:pointer;" onclick="switchTab('shares')"><div class="label">Pending</div><div class="value debit">${fmtMoney(Math.max(dueTotal-collected,0))}</div></div>
+        <div class="stat" style="cursor:pointer;" onclick="switchTab('shares')"><div class="label">Pending</div><div class="value debit">${fmtMoney(pendingTotal)}</div></div>
       </div>
     </div>
     <div class="grid-2">
