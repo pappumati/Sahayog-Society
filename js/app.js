@@ -71,9 +71,27 @@ document.addEventListener('DOMContentLoaded', ()=>{
   ensureDefaultAdminExists();
 });
 
-// PWA service worker
+// PWA service worker (network-first, see service-worker.js).
+// updateViaCache:'none' means the browser never reuses an old copy of the
+// worker itself, and if a new worker takes over while the app is open,
+// the page reloads once so you're immediately on the latest version.
 if('serviceWorker' in navigator){
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(!hadController || reloading) return; // first-ever install: nothing to refresh
+    reloading = true;
+    window.location.reload();
+  });
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+    navigator.serviceWorker.register('./service-worker.js', {updateViaCache:'none'})
+      .then(reg => {
+        reg.update().catch(()=>{});
+        // also re-check whenever the app comes back to the foreground
+        document.addEventListener('visibilitychange', ()=>{
+          if(document.visibilityState === 'visible') reg.update().catch(()=>{});
+        });
+      })
+      .catch(()=>{});
   });
 }
