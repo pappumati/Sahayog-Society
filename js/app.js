@@ -43,7 +43,7 @@ function startApp(){
     </div>
     <div id="toast"></div>
   `;
-  renderDashboard();
+  safeRender('dashboard');
 }
 
 const VIEW_ID = {
@@ -62,7 +62,26 @@ function switchTab(tabId){
     document.getElementById(VIEW_ID[t.id]).classList.toggle('hidden', t.id!==tabId);
     document.getElementById('nav-'+t.id).classList.toggle('active', t.id===tabId);
   });
-  RENDER_FN[tabId]();
+  safeRender(tabId);
+}
+
+// Runs a tab's render function; if it throws (e.g. a Firestore
+// permission or connection error), show the real error in that tab
+// instead of leaving it silently blank.
+async function safeRender(tabId){
+  const el = document.getElementById(VIEW_ID[tabId]);
+  try{
+    await RENDER_FN[tabId]();
+  }catch(e){
+    console.error('Render failed for tab', tabId, e);
+    const code = e && e.code ? ` (${e.code})` : '';
+    el.innerHTML = `
+      <div class="card" style="border-color:var(--debit);">
+        <div class="who" style="color:var(--debit);">This screen could not load</div>
+        <div class="meta" style="margin-top:6px;">${escapeHtml((e && e.message) || String(e))}${escapeHtml(code)}</div>
+        <button class="btn secondary block" style="margin-top:12px;" onclick="switchTab('${tabId}')">Try again</button>
+      </div>`;
+  }
 }
 
 // ---------- boot ----------
