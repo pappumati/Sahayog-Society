@@ -1,8 +1,8 @@
 // =====================================================
-// Firebase configuration
-// Replace the values below with YOUR Firebase project's
-// config (Firebase Console → Project Settings → General
-// → Your apps → SDK setup and configuration).
+// Firebase configuration for the Sahyog Society project.
+// (Firebase web keys are meant to be public - security comes from
+// the Firestore rules and login, not from hiding this key.)
+// =====================================================
 const firebaseConfig = {
   apiKey: "AIzaSyB3s83Xo-SnX_HtotRU-IbIW2-CsbryZUc",
   authDomain: "sahyog-society.firebaseapp.com",
