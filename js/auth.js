@@ -95,7 +95,19 @@ async function loadProfile(uid, email){
 auth.onAuthStateChanged(async (user)=>{
   if(user){
     currentUser = user;
-    currentProfile = await loadProfile(user.uid, user.email);
+    try{
+      currentProfile = await loadProfile(user.uid, user.email);
+    }catch(e){
+      // Database unreachable for a moment (weak connection etc.) - don't
+      // leave the screen blank; open the app with a basic profile.
+      console.warn('Could not load profile, using basic one:', e.message);
+      const isDefaultAdmin = user.email === usernameToEmail('admin');
+      currentProfile = {
+        username: (user.email || '').split('@')[0],
+        role: isDefaultAdmin ? 'admin' : 'staff',
+        isDefaultAdmin
+      };
+    }
     startApp();
   } else {
     currentUser = null; currentProfile = null;
