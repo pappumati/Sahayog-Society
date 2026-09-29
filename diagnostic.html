@@ -37,6 +37,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="./js/firebase-config.js"></script>
+  <script src="./js/utils.js"></script>
+  <script src="./js/members.js"></script>
+  <script src="./js/contributions.js"></script>
+  <script src="./js/loans.js"></script>
   <script>
     function line(container, cls, text){
       const d = document.createElement('div');
@@ -130,8 +134,34 @@
         line('out', 'fail', 'STEP 3 - Firestore read: FAILED\n' + e.code + ': ' + e.message);
       }
 
+      // Steps 4-6 call the REAL app's own functions (from members.js,
+      // contributions.js, loans.js) with this same fresh, verified login -
+      // to see whether the app's own code path succeeds or fails here too.
+      try{
+        const members = await getMembers();
+        line('out', 'ok', 'STEP 4 - Real app getMembers(): SUCCESS\nMembers found: ' + members.length);
+      }catch(e){
+        line('out', 'fail', 'STEP 4 - Real app getMembers(): FAILED\n' + e.code + ': ' + e.message);
+      }
+
+      try{
+        const mKey = new Date().getFullYear() + '-' + String(new Date().getMonth()+1).padStart(2,'0');
+        const created = await ensureMonthContributions(mKey);
+        const list = await getContributionsForMonth(mKey);
+        line('out', 'ok', 'STEP 5 - Real app ensureMonthContributions() + getContributionsForMonth(): SUCCESS\nNewly created: ' + created + '\nTotal this month: ' + list.length);
+      }catch(e){
+        line('out', 'fail', 'STEP 5 - Real app contributions functions: FAILED\n' + e.code + ': ' + e.message);
+      }
+
+      try{
+        const loans = await getActiveLoans();
+        line('out', 'ok', 'STEP 6 - Real app getActiveLoans(): SUCCESS\nActive loans: ' + loans.length);
+      }catch(e){
+        line('out', 'fail', 'STEP 6 - Real app getActiveLoans(): FAILED\n' + e.code + ': ' + e.message);
+      }
+
       await auth.signOut();
-      line('out', 'info', 'Signed out. Diagnostic complete.');
+      line('out', 'info', 'Signed out. Diagnostic complete - please screenshot everything above.');
     }
   </script>
 </body>
