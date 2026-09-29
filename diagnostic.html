@@ -6,9 +6,10 @@
 <title>Sahyog Society - Connection Diagnostic</title>
 <style>
   body{font-family:system-ui,sans-serif; max-width:640px; margin:0 auto; padding:18px; background:#F3EEE0; color:#24304A;}
-  h1{font-size:19px;}
+  h1{font-size:19px;} h2{font-size:15px; margin-top:28px;}
   input{width:100%; padding:10px; margin:6px 0 12px; border:1px solid #C9BFA0; border-radius:8px; box-sizing:border-box; font-size:15px;}
-  button{background:#24304A; color:#FBF8EF; border:none; border-radius:8px; padding:11px 18px; font-size:15px; font-weight:600;}
+  button{background:#24304A; color:#FBF8EF; border:none; border-radius:8px; padding:11px 18px; font-size:15px; font-weight:600; margin-top:6px;}
+  button.danger{background:#8C2F39;}
   .line{padding:8px 10px; margin:6px 0; border-radius:6px; font-size:13.5px; white-space:pre-wrap; word-break:break-word; font-family:ui-monospace,Consolas,monospace;}
   .ok{background:#E1EFE3; color:#1E5E33;}
   .fail{background:#F6DEDE; color:#8C2F39;}
@@ -17,7 +18,14 @@
 </head>
 <body>
   <h1>Sahyog Society - Connection Diagnostic</h1>
-  <p style="font-size:13px;">This page talks directly to your real Firebase project and shows exactly what happens at each step. It does not change any data. Screenshot the results below and send them back.</p>
+  <p style="font-size:13px;">This page talks directly to your real Firebase project and inspects what's actually cached on this phone. It does not change your society data. Screenshot the results and send them back.</p>
+
+  <h2>Part A - What's cached on THIS phone right now</h2>
+  <button onclick="checkCache()">Check Cached Files</button>
+  <div id="cacheOut"></div>
+  <button class="danger" onclick="nukeSW()">Force-remove old cached files + reload</button>
+
+  <h2>Part B - Live login + database test</h2>
   <label>Username</label>
   <input id="u" value="admin" autocapitalize="off">
   <label>Password</label>
@@ -30,58 +38,100 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="./js/firebase-config.js"></script>
   <script>
-    function line(cls, text){
+    function line(container, cls, text){
       const d = document.createElement('div');
       d.className = 'line ' + cls;
       d.textContent = text;
-      document.getElementById('out').appendChild(d);
+      document.getElementById(container).appendChild(d);
     }
+
+    async function checkCache(){
+      const out = 'cacheOut';
+      document.getElementById(out).innerHTML = '';
+
+      const regs = await navigator.serviceWorker.getRegistrations();
+      if(regs.length === 0){
+        line(out, 'ok', 'No service worker registered on this page right now.');
+      }
+      for(const r of regs){
+        const w = r.active || r.waiting || r.installing;
+        line(out, 'info', 'Service worker found\nscope: ' + r.scope + '\nscript: ' + (w ? w.scriptURL : '?') + '\nstate: ' + (w ? w.state : '?'));
+      }
+
+      const names = await caches.keys();
+      if(names.length === 0){
+        line(out, 'ok', 'No Cache Storage entries on this phone for this site.');
+      }
+      for(const name of names){
+        const cache = await caches.open(name);
+        const keys = await cache.keys();
+        line(out, 'info', 'Cache "' + name + '" contains ' + keys.length + ' file(s):\n' + keys.map(k=>new URL(k.url).pathname).join('\n'));
+
+        // The critical check: what does the CACHED copy of firebase-config.js
+        // actually contain, versus what's live on GitHub right now?
+        const cachedConfig = await cache.match('./js/firebase-config.js') || await cache.match(location.origin + '/Sahayog-Society/js/firebase-config.js');
+        if(cachedConfig){
+          const text = await cachedConfig.text();
+          const m = text.match(/projectId:\s*["']([^"']+)["']/);
+          line(out, (m && m[1]==='sahyog-society') ? 'ok' : 'fail',
+            'CACHED firebase-config.js in "' + name + '" has projectId: ' + (m ? m[1] : '(not found / placeholder still there)'));
+        }
+      }
+
+      try{
+        const net = await fetch('./js/firebase-config.js', {cache:'no-cache'});
+        const text = await net.text();
+        const m = text.match(/projectId:\s*["']([^"']+)["']/);
+        line(out, (m && m[1]==='sahyog-society') ? 'ok' : 'fail',
+          'LIVE (network) firebase-config.js has projectId: ' + (m ? m[1] : '(not found)'));
+      }catch(e){
+        line(out, 'fail', 'Could not fetch the live firebase-config.js: ' + e.message);
+      }
+    }
+
+    async function nukeSW(){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for(const r of regs) await r.unregister();
+      const names = await caches.keys();
+      for(const n of names) await caches.delete(n);
+      alert('Removed ' + regs.length + ' service worker(s) and ' + names.length + ' cache(s). Reloading now - please then reopen the main app fresh.');
+      location.reload();
+    }
+
     async function run(){
       document.getElementById('out').innerHTML = '';
-      line('info', 'Project ID in firebase-config.js: ' + (firebaseConfig.projectId || '(missing)'));
-      line('info', 'Auth domain: ' + (firebaseConfig.authDomain || '(missing)'));
+      line('out', 'info', 'Project ID in firebase-config.js: ' + (firebaseConfig.projectId || '(missing)'));
+      line('out', 'info', 'Auth domain: ' + (firebaseConfig.authDomain || '(missing)'));
 
       const email = document.getElementById('u').value.trim().toLowerCase().replace(/[^a-z0-9._-]/g,'') + '@sahyog.local';
       const pass = document.getElementById('p').value;
 
-      // Step 1: sign in
       let user;
       try{
         const cred = await auth.signInWithEmailAndPassword(email, pass);
         user = cred.user;
-        line('ok', 'STEP 1 - Sign in: SUCCESS\nUID: ' + user.uid + '\nEmail: ' + user.email);
+        line('out', 'ok', 'STEP 1 - Sign in: SUCCESS\nUID: ' + user.uid + '\nEmail: ' + user.email);
       }catch(e){
-        line('fail', 'STEP 1 - Sign in: FAILED\n' + e.code + ': ' + e.message);
-        line('info', 'Stopping here - if sign-in fails, everything after it will fail too. This means the password does not match this username in Firebase Auth.');
+        line('out', 'fail', 'STEP 1 - Sign in: FAILED\n' + e.code + ': ' + e.message);
         return;
       }
 
-      // Step 2: inspect the actual ID token being sent with every request
       try{
         const tokenResult = await user.getIdTokenResult(true);
-        line('ok', 'STEP 2 - ID token: OBTAINED\nissuer (iss): ' + tokenResult.claims.iss + '\naudience (aud): ' + tokenResult.claims.aud + '\nauth_time: ' + new Date(tokenResult.claims.auth_time*1000).toString() + '\nexpires: ' + tokenResult.expirationTime);
+        line('out', 'ok', 'STEP 2 - ID token: OBTAINED\naudience (aud): ' + tokenResult.claims.aud);
       }catch(e){
-        line('fail', 'STEP 2 - ID token: FAILED\n' + e.code + ': ' + e.message);
+        line('out', 'fail', 'STEP 2 - ID token: FAILED\n' + e.code + ': ' + e.message);
       }
 
-      // Step 3: try an actual Firestore read - this is the one that has been failing
       try{
         const snap = await db.collection('members').limit(1).get();
-        line('ok', 'STEP 3 - Firestore read: SUCCESS\nDocuments returned: ' + snap.size + (snap.size ? '\nFirst doc: ' + JSON.stringify(snap.docs[0].data()) : ' (collection reachable but empty)'));
+        line('out', 'ok', 'STEP 3 - Firestore read: SUCCESS\nDocuments returned: ' + snap.size);
       }catch(e){
-        line('fail', 'STEP 3 - Firestore read: FAILED\n' + e.code + ': ' + e.message);
-      }
-
-      // Step 4: try a Firestore WRITE (a harmless throwaway doc) to see if it's read-only vs fully blocked
-      try{
-        await db.collection('_diagnostic').doc('ping').set({at: new Date().toISOString()});
-        line('ok', 'STEP 4 - Firestore write: SUCCESS (wrote to a throwaway "_diagnostic" collection - safe to ignore/delete)');
-      }catch(e){
-        line('fail', 'STEP 4 - Firestore write: FAILED\n' + e.code + ': ' + e.message);
+        line('out', 'fail', 'STEP 3 - Firestore read: FAILED\n' + e.code + ': ' + e.message);
       }
 
       await auth.signOut();
-      line('info', 'Signed out. Diagnostic complete - please screenshot everything above.');
+      line('out', 'info', 'Signed out. Diagnostic complete.');
     }
   </script>
 </body>
