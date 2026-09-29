@@ -92,6 +92,8 @@ async function loadProfile(uid, email){
   return { username: email.split('@')[0], role:'staff', isDefaultAdmin:false };
 }
 
+let _seedChecked = false; // ensures the admin-seed check below runs at most once
+
 auth.onAuthStateChanged(async (user)=>{
   if(user){
     currentUser = user;
@@ -111,6 +113,15 @@ auth.onAuthStateChanged(async (user)=>{
     startApp();
   } else {
     currentUser = null; currentProfile = null;
+    // Only ever check/create the default admin when we KNOW no one is
+    // logged in - never while a real session might be active - and only
+    // once per page load (this call itself triggers this same branch
+    // again via its internal sign-in + sign-out, so the guard prevents
+    // an infinite loop).
+    if(!_seedChecked){
+      _seedChecked = true;
+      await ensureDefaultAdminExists();
+    }
     renderLogin();
   }
 });

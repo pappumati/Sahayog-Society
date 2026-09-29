@@ -87,7 +87,8 @@ async function safeRender(tabId){
 // ---------- boot ----------
 document.addEventListener('DOMContentLoaded', ()=>{
   initTheme();
-  ensureDefaultAdminExists();
+  // Admin-seed check now lives in auth.js's onAuthStateChanged, and only
+  // runs when there is genuinely no logged-in user - see comment there.
 });
 
 // PWA service worker (network-first, see service-worker.js).
